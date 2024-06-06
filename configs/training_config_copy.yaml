@@ -1,6 +1,6 @@
 anneal_function: logistic
 annealing_till: 2500
-batch_size: 2
+batch_size: 8
 epochs: 10
 k: 0.0025
 learning_rate: 0.001

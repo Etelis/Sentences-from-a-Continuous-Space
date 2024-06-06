@@ -1,6 +1,7 @@
 import torch
 from torch.utils.data import Dataset, DataLoader
 import json
+import torch.nn.utils.rnn as rnn_utils
 
 class PTBDataset(Dataset):
     def __init__(self, data_path, vocab_path):
@@ -49,24 +50,31 @@ class PTBDataset(Dataset):
     def get_inv_vocab(self):
         return self.inv_vocab
 
+
+import torch
+import torch.nn.utils.rnn as rnn_utils
+
 def collate_fn(batch, pad_idx):
     inputs = [item['input'] for item in batch]
     targets = [item['target'] for item in batch]
-    lengths = [item['length'] for item in batch]
+    lengths = [len(input) for input in inputs]  # Ensure lengths are recalculated
+    
+    # Convert to tensors and sort by lengths
+    lengths = torch.tensor(lengths)
+    lengths, sorted_idx = torch.sort(lengths, descending=True)
+    inputs = [torch.tensor(inputs[i]) for i in sorted_idx]
+    targets = [torch.tensor(targets[i]) for i in sorted_idx]
 
-    # Sort by lengths (descending order)
-    lengths, sorted_idx = torch.sort(torch.tensor(lengths), descending=True)
-    inputs = [inputs[i] for i in sorted_idx]
-    targets = [targets[i] for i in sorted_idx]
-
-    padded_inputs = torch.nn.utils.rnn.pad_sequence(inputs, batch_first=True, padding_value=pad_idx)
-    padded_targets = torch.nn.utils.rnn.pad_sequence(targets, batch_first=True, padding_value=pad_idx)
+    # Pad sequences
+    padded_inputs = rnn_utils.pad_sequence(inputs, batch_first=True, padding_value=pad_idx)
+    padded_targets = rnn_utils.pad_sequence(targets, batch_first=True, padding_value=pad_idx)
 
     return {
         'input': padded_inputs,
         'target': padded_targets,
         'length': lengths
     }
+
 
 def create_dataloader(dataset, batch_size, pad_idx, shuffle=True):
     return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, collate_fn=lambda x: collate_fn(x, pad_idx))
