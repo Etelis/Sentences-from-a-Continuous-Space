@@ -1,0 +1,8 @@
+embedding_dim: 300  # Dimension of word embeddings
+hidden_dim: 256  # Dimension of hidden states in the LSTM
+word_dropout_rate: 0.5  # Dropout rate for word dropout
+embedding_dropout_rate: 0.1  # Dropout rate for embedding layer
+latent_dim: 64  # Dimension of the latent space
+max_gen_len: 50  # Maximum length of generated sequences
+bidirectional: false  # Whether to use bidirectional LSTMs
+num_layers: 2  # Number of LSTM layers

@@ -20,3 +20,10 @@ tests/models/__pycache__/test_lstm_encoder.cpython-312-pytest-8.2.2.pyc
 tests/models/__pycache__/test_mode.cpython-312-pytest-8.2.2.pyc
 tests/models/__pycache__/test_model.cpython-312-pytest-8.2.2.pyc
 tests/models/__pycache__/test_vae.cpython-312-pytest-8.2.2.pyc
+logs/events.out.tfevents.1717667405.CS188780.8196.0
+logs/events.out.tfevents.1717667487.CS188780.14012.0
+logs/events.out.tfevents.1717667563.CS188780.1316.0
+training/__pycache__/__init__.cpython-312.pyc
+training/__pycache__/evaluate.cpython-312.pyc
+training/__pycache__/loss_functions.cpython-312.pyc
+training/__pycache__/metrics.cpython-312.pyc

@@ -18,11 +18,10 @@ def download_and_extract_data(url, extract_to):
         tar.extractall(path=extract_to)
 
     # Move the relevant files to the data directory
-    data_dir = os.path.join(extract_to, 'data')
-    os.makedirs(data_dir, exist_ok=True)
-    os.rename(os.path.join(extract_to, 'simple-examples/data/ptb.train.txt'), os.path.join(data_dir, 'ptb.train.txt'))
-    os.rename(os.path.join(extract_to, 'simple-examples/data/ptb.valid.txt'), os.path.join(data_dir, 'ptb.valid.txt'))
-    os.rename(os.path.join(extract_to, 'simple-examples/data/ptb.test.txt'), os.path.join(data_dir, 'ptb.test.txt'))
+    os.makedirs(extract_to, exist_ok=True)
+    os.rename(os.path.join(extract_to, 'simple-examples/data/ptb.train.txt'), os.path.join(extract_to, 'ptb.train.txt'))
+    os.rename(os.path.join(extract_to, 'simple-examples/data/ptb.valid.txt'), os.path.join(extract_to, 'ptb.valid.txt'))
+    os.rename(os.path.join(extract_to, 'simple-examples/data/ptb.test.txt'), os.path.join(extract_to, 'ptb.test.txt'))
 
     # Clean up
     os.remove(tar_path)

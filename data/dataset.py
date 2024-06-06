@@ -4,17 +4,13 @@ import json
 
 class PTBDataset(Dataset):
     def __init__(self, data_path, vocab_path):
-        try:
-            with open(data_path, 'r') as file:
-                self.data = json.load(file)
-            with open(vocab_path, 'r') as vocab_file:
-                vocab_dict = json.load(vocab_file)
-
-            self.vocab = vocab_dict['stoi']
-            self.inv_vocab = vocab_dict['itos']
-        except Exception as e:
-            print(f"Error loading dataset: {e}")
-            raise
+        with open(data_path, 'r') as file:
+            self.data = json.load(file)
+        with open(vocab_path, 'r') as vocab_file:
+            vocab_dict = json.load(vocab_file)
+        
+        self.vocab = vocab_dict['stoi']
+        self.inv_vocab = vocab_dict['itos']
     
     def __len__(self):
         return len(self.data)
