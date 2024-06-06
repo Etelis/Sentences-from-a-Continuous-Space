@@ -19,7 +19,6 @@ class SentenceFromSpaceModel(nn.Module):
         self.num_layers = num_layers
 
         self.embedding_layer = nn.Embedding(vocab_size, embedding_dim)
-        self.embedding_dropout = nn.Dropout(p=embedding_dropout_rate)
 
         self.encoder = LSTMEncoder(embedding_dim, hidden_dim, num_layers=num_layers, bidirectional=bidirectional)
         self.vae = VariationalAutoencoder(hidden_dim, latent_dim, num_layers, bidirectional=bidirectional)
@@ -31,10 +30,8 @@ class SentenceFromSpaceModel(nn.Module):
         batch_size = input_seq.shape[0]
 
         embeddings = self.embedding_layer(input_seq)
-        embeddings = self.embedding_dropout(embeddings)
 
         encoder_output, encoder_hidden = self.encoder(embeddings, seq_lengths)
-        
         if isinstance(encoder_hidden, tuple):  # LSTM case
             encoder_hidden = encoder_hidden[0]
 
@@ -51,8 +48,6 @@ class SentenceFromSpaceModel(nn.Module):
         embeddings = self.apply_word_dropout(input_seq)
 
         embeddings = self.embedding_layer(embeddings)
-        embeddings = self.embedding_dropout(embeddings)
-        
         logits, decoder_hidden = self.decoder(embeddings, decoder_hidden)
 
         log_probs = F.log_softmax(logits, dim=-1)
@@ -64,6 +59,7 @@ class SentenceFromSpaceModel(nn.Module):
             drop_mask = torch.rand(input_seq.shape).to(self.device) < self.word_dropout_rate
             drop_mask[input_seq == self.special_tokens['sos_token']] = 0
             drop_mask[input_seq == self.special_tokens['pad_token']] = 0
+            input_seq = input_seq.clone()
             input_seq[drop_mask] = self.special_tokens['unk_token']
         return input_seq
 
@@ -110,11 +106,6 @@ class SentenceFromSpaceModel(nn.Module):
             sequences.append(ordered)
 
         return [seq for seq, _, _ in sequences[-1]]
-
-
-
-
-
 
     def _sample(self, dist, mode='greedy'):
         if mode == 'greedy':

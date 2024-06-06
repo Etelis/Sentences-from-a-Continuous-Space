@@ -1,0 +1,8 @@
+anneal_function: logistic
+annealing_till: 2500
+batch_size: 2
+epochs: 10
+k: 0.0025
+learning_rate: 0.001
+log_dir: logs
+log_interval: 100

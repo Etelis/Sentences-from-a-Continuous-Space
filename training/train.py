@@ -13,6 +13,8 @@ from training.loss_functions import loss_fn
 from training.metrics import calculate_accuracy
 from training.evaluate import evaluate
 
+torch.autograd.set_detect_anomaly(True)
+
 def train(model, train_dataloader, val_dataloader, optimizer, device, epochs, log_interval, log_dir, anneal_function, k, annealing_till):
     writer = SummaryWriter(log_dir)
     
@@ -31,6 +33,10 @@ def train(model, train_dataloader, val_dataloader, optimizer, device, epochs, lo
             inputs, targets, lengths = batch['input'], batch['target'], batch['length']
             inputs, targets = inputs.to(device), targets.to(device)
             
+            # Ensure lengths are sorted in descending order
+            lengths, sorted_idx = torch.sort(lengths, descending=True)
+            inputs, targets = inputs[sorted_idx], targets[sorted_idx]
+
             optimizer.zero_grad()
             outputs, mu, logsigma, _ = model(inputs, lengths)
             elbo, nll_loss, kl_loss, kl_weight = loss_fn(outputs, targets, lengths, mu, logsigma, anneal_function, global_step, k, annealing_till)
@@ -73,8 +79,9 @@ def train(model, train_dataloader, val_dataloader, optimizer, device, epochs, lo
     writer.close()
 
 def load_config(config_file):
-    with open(config_file, 'r') as file:
+    with open(config_file, 'r') as file, open(file.name.replace(".yaml", "_copy.yaml"), 'w') as out_file:
         config = yaml.safe_load(file)
+        yaml.safe_dump(config, out_file)
     return config
 
 if __name__ == "__main__":

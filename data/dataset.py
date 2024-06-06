@@ -54,8 +54,10 @@ def collate_fn(batch, pad_idx):
     targets = [item['target'] for item in batch]
     lengths = [item['length'] for item in batch]
 
-    max_input_len = max(len(input) for input in inputs)
-    max_target_len = max(len(target) for target in targets)
+    # Sort by lengths (descending order)
+    lengths, sorted_idx = torch.sort(torch.tensor(lengths), descending=True)
+    inputs = [inputs[i] for i in sorted_idx]
+    targets = [targets[i] for i in sorted_idx]
 
     padded_inputs = torch.nn.utils.rnn.pad_sequence(inputs, batch_first=True, padding_value=pad_idx)
     padded_targets = torch.nn.utils.rnn.pad_sequence(targets, batch_first=True, padding_value=pad_idx)
@@ -63,7 +65,7 @@ def collate_fn(batch, pad_idx):
     return {
         'input': padded_inputs,
         'target': padded_targets,
-        'length': torch.tensor(lengths)
+        'length': lengths
     }
 
 def create_dataloader(dataset, batch_size, pad_idx, shuffle=True):

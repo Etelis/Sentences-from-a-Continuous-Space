@@ -1,0 +1,8 @@
+bidirectional: false
+embedding_dim: 300
+embedding_dropout_rate: 0.1
+hidden_dim: 256
+latent_dim: 64
+max_gen_len: 50
+num_layers: 2
+word_dropout_rate: 0.5
