@@ -1,9 +1,12 @@
-
 import os
 import requests
 import tarfile
+import shutil
 
 def download_and_extract_data(url, extract_to):
+    # Ensure the directory exists
+    os.makedirs(extract_to, exist_ok=True)
+    
     # Download the file
     response = requests.get(url)
     tar_path = os.path.join(extract_to, 'simple-examples.tgz')
@@ -23,12 +26,7 @@ def download_and_extract_data(url, extract_to):
 
     # Clean up
     os.remove(tar_path)
-    for root, dirs, files in os.walk(os.path.join(extract_to, 'simple-examples')):
-        for file in files:
-            os.remove(os.path.join(root, file))
-        for dir in dirs:
-            os.rmdir(os.path.join(root, dir))
-    os.rmdir(os.path.join(extract_to, 'simple-examples'))
+    shutil.rmtree(os.path.join(extract_to, 'simple-examples'))
 
 if __name__ == "__main__":
     url = "http://www.fit.vutbr.cz/~imikolov/rnnlm/simple-examples.tgz"
