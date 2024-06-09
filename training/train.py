@@ -62,8 +62,16 @@ def train(model, train_dataloader, val_dataloader, optimizer, device, epochs, lo
         avg_kl_div = total_kl_div / len(train_dataloader)
         avg_recon_loss = total_recon_loss / len(train_dataloader)
         avg_train_accuracy = total_accuracy / len(train_dataloader)
-        val_loss = evaluate(model, val_dataloader, loss_fn, device)
-
+        val_loss = evaluate(
+                            model,
+                            val_dataloader,
+                            loss_fn,
+                            device,
+                            anneal_function=training_config['anneal_function'],
+                            step=global_step,
+                            k=training_config['k'],
+                            annealing_till=training_config['annealing_till']
+                            )
         writer.add_scalar('Epoch/ELBO', avg_train_loss, epoch)
         writer.add_scalar('Epoch/KL Divergence', avg_kl_div, epoch)
         writer.add_scalar('Epoch/Negative Log-likelihood', avg_recon_loss, epoch)
