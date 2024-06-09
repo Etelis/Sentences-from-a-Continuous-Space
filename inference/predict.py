@@ -2,7 +2,7 @@ import os
 import argparse
 import torch
 from tqdm import tqdm
-from sentence_generator import load_model, generate_sentence, load_config, process_generated_tokens
+from inference.sentence_generator import load_model, generate_sentence, load_config, process_generated_tokens
 from data.create_vocab import load_vocab
 
 def main():
