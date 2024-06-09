@@ -50,10 +50,6 @@ class PTBDataset(Dataset):
     def get_inv_vocab(self):
         return self.inv_vocab
 
-
-import torch
-import torch.nn.utils.rnn as rnn_utils
-
 def collate_fn(batch, pad_idx):
     inputs = [item['input'] for item in batch]
     targets = [item['target'] for item in batch]

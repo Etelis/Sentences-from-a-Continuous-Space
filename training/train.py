@@ -4,6 +4,7 @@ import yaml
 import torch
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
+from datetime import datetime
 from models.model import SentenceFromSpaceModel
 from data.dataset import PTBDataset, create_dataloader
 from data.create_vocab import create_vocab, load_vocab
@@ -62,19 +63,31 @@ def train(model, train_dataloader, val_dataloader, optimizer, device, epochs, lo
         avg_kl_div = total_kl_div / len(train_dataloader)
         avg_recon_loss = total_recon_loss / len(train_dataloader)
         avg_train_accuracy = total_accuracy / len(train_dataloader)
-        val_loss = evaluate(model, val_dataloader, loss_fn, device)
+        val_loss, avg_nll_loss, avg_kl_loss = evaluate(
+            model,
+            val_dataloader,
+            loss_fn,
+            device,
+            anneal_function,
+            step=global_step,  # Use global_step for consistency
+            k=k,
+            annealing_till=annealing_till
+        )
 
         writer.add_scalar('Epoch/ELBO', avg_train_loss, epoch)
         writer.add_scalar('Epoch/KL Divergence', avg_kl_div, epoch)
         writer.add_scalar('Epoch/Negative Log-likelihood', avg_recon_loss, epoch)
         writer.add_scalar('Epoch/Accuracy', avg_train_accuracy, epoch)
         writer.add_scalar('Validation/Loss', val_loss, epoch)
+        writer.add_scalar('Validation/NLL Loss', avg_nll_loss, epoch)
+        writer.add_scalar('Validation/KL Loss', avg_kl_loss, epoch)
 
-        print(f'Epoch: {epoch+1}, Train ELBO: {avg_train_loss:.4f}, KL Divergence: {avg_kl_div:.4f}, Recon Loss: {avg_recon_loss:.4f}, Train Accuracy: {avg_train_accuracy:.4f}, Validation Loss: {val_loss:.4f}')
+        print(f'Epoch: {epoch+1}, Train ELBO: {avg_train_loss:.4f}, KL Divergence: {avg_kl_div:.4f}, Recon Loss: {avg_recon_loss:.4f}, Train Accuracy: {avg_train_accuracy:.4f}, Validation Loss: {val_loss:.4f}, Validation NLL Loss: {avg_nll_loss:.4f}, Validation KL Loss: {avg_kl_loss:.4f}')
         
         if val_loss < best_val_loss:
             best_val_loss = val_loss
-            torch.save(model.state_dict(), os.path.join(log_dir, 'best_model.pt'))
+            model_save_path = os.path.join(log_dir, 'checkpoints', 'best_model.pt')
+            torch.save(model.state_dict(), model_save_path)
     
     writer.close()
 
@@ -140,12 +153,21 @@ if __name__ == "__main__":
     
     optimizer = torch.optim.Adam(model.parameters(), lr=training_config['learning_rate'])
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # Create unique log directory based on timestamp
+    current_time = datetime.now().strftime('%Y%m%d-%H%M%S')
+    log_base_dir = training_config['log_dir']
+    execution_dir = os.path.join(log_base_dir, current_time)
+    tensorboard_log_dir = os.path.join(execution_dir, 'tensorboard')
+    checkpoints_dir = os.path.join(execution_dir, 'checkpoints')
+    os.makedirs(tensorboard_log_dir, exist_ok=True)
+    os.makedirs(checkpoints_dir, exist_ok=True)
     
     # Train the model
     train(model, train_dataloader, val_dataloader, optimizer, device, 
           epochs=training_config['epochs'], 
           log_interval=training_config['log_interval'], 
-          log_dir=training_config['log_dir'], 
+          log_dir=tensorboard_log_dir,  # Pass the TensorBoard log directory
           anneal_function=training_config['anneal_function'], 
           k=training_config['k'], 
           annealing_till=training_config['annealing_till'])
