@@ -1,59 +1,9 @@
 import os
 import argparse
-import yaml
 import torch
 from tqdm import tqdm
-from models.model import SentenceFromSpaceModel
+from sentence_generator import load_model, generate_sentence, load_config, process_generated_tokens
 from data.create_vocab import load_vocab
-
-def load_model(model_path, model_config, vocab_size, special_tokens, device):
-    model = SentenceFromSpaceModel(
-        vocab_size=vocab_size,
-        embedding_dim=model_config['embedding_dim'],
-        hidden_dim=model_config['hidden_dim'],
-        word_dropout_rate=model_config['word_dropout_rate'],
-        embedding_dropout_rate=model_config['embedding_dropout_rate'],
-        latent_dim=model_config['latent_dim'],
-        special_tokens=special_tokens,
-        max_gen_len=model_config['max_gen_len'],
-        bidirectional=model_config['bidirectional'],
-        num_layers=model_config['num_layers']
-    )
-    model.load_state_dict(torch.load(model_path, map_location=device))
-    model.to(device)
-    model.eval()
-    return model
-
-def generate_sentence(model, device, n_samples, use_beam_search, beam_width):
-    with torch.no_grad():
-        z = torch.randn([1, model.latent_dim]).to(device)  # Generate one latent vector at a time
-        generated_tokens = model.inference(n_samples=n_samples, z=z, beam_width=beam_width, use_beam_search=use_beam_search)
-        return generated_tokens
-
-def load_config(config_file):
-    with open(config_file, 'r') as file:
-        config = yaml.safe_load(file)
-    return config
-
-def process_generated_tokens(generated_tokens, vocab, special_tokens):
-    try:
-        vocab_size = len(vocab['itos'])
-        sentence_words = []
-        for token in generated_tokens:
-            if token < vocab_size:
-                word = vocab['itos'][token]
-                sentence_words.append(word)
-            else:
-                print(f"Debug: Token {token} is out of range, using <unk>")
-                sentence_words.append('<unk>')
-
-        sentence_text = ' '.join(sentence_words)
-        print("Debug: Sentence text after token conversion:", sentence_text)
-
-        return sentence_text
-    except Exception as e:
-        print(f"Error processing sentence {generated_tokens}: {e}")
-        return None
 
 def main():
     parser = argparse.ArgumentParser(description='Inference with SentenceFromSpaceModel')
@@ -86,20 +36,21 @@ def main():
             print(f"Opened output file: {args.output_file}")
 
             for _ in tqdm(range(inference_config['num_sentences']), desc="Generating Sentences"):
-                sentence_tokens = generate_sentence(
+                generated_tokens_list = generate_sentence(
                     model, 
                     device, 
-                    n_samples=inference_config['n_samples'],
+                    n_samples=1,  # Generate one sample at a time for now
                     use_beam_search=args.use_beam_search,
                     beam_width=args.beam_width
                 )
 
-                sentence_text = process_generated_tokens(sentence_tokens, vocab, special_tokens)
-                if sentence_text:
-                    print("Generated sentence:", sentence_text)
-                    f.write(sentence_text + '\n')
-                else:
-                    print("Generated sentence is empty or invalid, skipping writing.")
+                for generated_tokens in generated_tokens_list:
+                    sentence_text = process_generated_tokens(generated_tokens, vocab)
+                    if sentence_text:
+                        print("Generated sentence:", sentence_text)
+                        f.write(sentence_text + '\n')
+                    else:
+                        print("Generated sentence is empty or invalid, skipping writing.")
 
         print(f"Completed writing to {args.output_file}")
 
