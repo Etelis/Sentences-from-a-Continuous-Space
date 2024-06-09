@@ -1,0 +1,7 @@
+num_sentences: 1
+beam_width: 5
+device: "cuda"
+output_file: "generated_sentences.txt"
+data_dir: "data"
+model_path: "Sentences-from-a-Continuous-Space/logs/best_model.pt"
+n_samples: 20
