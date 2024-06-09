@@ -31,7 +31,7 @@ class SentenceFromSpaceModel(nn.Module):
 
         embeddings = self.embedding_layer(input_seq)
 
-        encoder_output, encoder_hidden = self.encoder(embeddings, seq_lengths)
+        _, encoder_hidden = self.encoder(embeddings, seq_lengths)
         if isinstance(encoder_hidden, tuple):  # LSTM case
             encoder_hidden = encoder_hidden[0]
 
@@ -65,78 +65,59 @@ class SentenceFromSpaceModel(nn.Module):
         return self.embedding_layer(input_seq)
 
 
-    def inference(self, n_samples, z=None, beam_width=5, use_beam_search=False):
-
+    def inference(self, n_samples=1, z=None, use_beam_search=True, beam_width=5):
         if z is None:
-            # Generate a random latent vector if not provided
-            z = torch.randn([1, self.latent_dim]).to(self.device)
-    
-        if use_beam_search:
-            return self.beam_search(z, beam_width=beam_width, max_seq_len=n_samples)
-        else:
-            # Greedy decoding
-            sos_token = self.special_tokens['sos_token']
-            eos_token = self.special_tokens['eos_token']
-            input_token = torch.tensor([[sos_token]]).to(self.device)
-    
-            decoder_hidden = self.vae.latent_to_hidden(z)
-            decoder_hidden = decoder_hidden.view(self.num_layers, 1, self.hidden_dim)
-            decoder_hidden = (decoder_hidden, torch.zeros_like(decoder_hidden))
-    
-            generated_tokens = []
-    
-            for _ in range(n_samples):
-                input_embedding = self.embedding_layer(input_token)
-                logits, decoder_hidden = self.decoder(input_embedding, decoder_hidden)
-                log_probs = F.log_softmax(logits, dim=-1)
-                top_token = torch.argmax(log_probs, dim=-1)
-                generated_tokens.append(top_token.item())
-    
-                if top_token.item() == eos_token:
-                    break
-    
-                input_token = top_token
-    
-            return generated_tokens
-
-    
-    def beam_search(self, z, beam_width=5, max_seq_len=20):
-        
-        sos_token = self.special_tokens['sos_token']
-        eos_token = self.special_tokens['eos_token']
+            z = torch.randn([n_samples, self.latent_dim]).to(self.device)
     
         decoder_hidden = self.vae.latent_to_hidden(z)
-        decoder_hidden = decoder_hidden.view(self.num_layers, 1, self.hidden_dim)
+        decoder_hidden = decoder_hidden.view(self.num_layers, n_samples, self.hidden_dim)
         decoder_hidden = (decoder_hidden, torch.zeros_like(decoder_hidden))
-
-        input_token = torch.tensor([[sos_token]]).to(self.device)
     
-        sequences = [[list(), 0.0, decoder_hidden, input_token]]
-        
-        for _ in range(max_seq_len):
-            all_candidates = list()
-            for seq, score, hidden, input_token in sequences:
-                if len(seq) > 0 and seq[-1] == eos_token:
-                    all_candidates.append((seq, score, hidden, input_token))
+        if use_beam_search:
+            generations = [self.beam_search(decoder_hidden, beam_width) for _ in range(n_samples)]
+        else:
+            generations = [self.greedy_search(decoder_hidden) for _ in range(n_samples)]
+    
+        return generations
+    
+    def beam_search(self, decoder_hidden, beam_width):
+        sequences = [[([], 0.0, decoder_hidden)]]
+        for _ in range(self.max_gen_len):
+            all_candidates = []
+            for seq, score, (h, c) in sequences[-1]:
+                if len(seq) > 0 and seq[-1] == self.special_tokens['eos_token']:
+                    all_candidates.append((seq, score, (h, c)))
                     continue
     
+                input_token = torch.tensor([[seq[-1]]] if seq else [[self.special_tokens['sos_token']]]).to(self.device)
                 input_embedding = self.embedding_layer(input_token)
-                logits, hidden = self.decoder(input_embedding, hidden)
-                log_probs = F.log_softmax(logits, dim=-1)
+                logits, (h, c) = self.decoder(input_embedding, (h, c))
+                log_probs = F.log_softmax(logits, dim=-1).squeeze(1)
     
-                topk_log_probs, topk_indices = torch.topk(log_probs, beam_width, dim=-1)
+                topk_probs, topk_indices = torch.topk(log_probs, beam_width)
+                for k in range(beam_width):
+                    candidate_seq = seq + [topk_indices[0, k].item()]
+                    candidate_score = score + topk_probs[0, k].item() / (len(candidate_seq) ** 0.7)  # Length normalization
+                    all_candidates.append((candidate_seq, candidate_score, (h.clone(), c.clone())))
     
-                for i in range(beam_width):
-                    candidate = (seq + [topk_indices[0, 0, i].item()],
-                                 score + topk_log_probs[0, 0, i].item(),
-                                 hidden,
-                                 topk_indices[0, 0, i].view(1, 1))
-                    all_candidates.append(candidate)
+            ordered = sorted(all_candidates, key=lambda x: x[1], reverse=True)[:beam_width]
+            sequences.append(ordered)
     
-            ordered = sorted(all_candidates, key=lambda x: x[1], reverse=True)
-            sequences = ordered[:beam_width]
-    
-            if all(seq[-1] == eos_token for seq, _, _, _ in sequences):
-                break
+        final_sequences = sorted(sequences[-1], key=lambda x: x[1], reverse=True)
+        return final_sequences[0][0]
 
-        return sequences[0][0]
+
+    def greedy_search(self, decoder_hidden):
+        generated_sequence = []
+        input_token = torch.tensor([[self.special_tokens['sos_token']]]).to(self.device)
+        for _ in range(self.max_gen_len):
+            input_embedding = self.embedding_layer(input_token)
+            logits, decoder_hidden = self.decoder(input_embedding, decoder_hidden)
+            log_probs = F.log_softmax(logits, dim=-1).squeeze(1)
+            top_token = log_probs.argmax(dim=-1).item()
+            generated_sequence.append(top_token)
+            if top_token == self.special_tokens['eos_token']:
+                break
+            input_token = torch.tensor([[top_token]]).to(self.device)
+
+        return generated_sequence

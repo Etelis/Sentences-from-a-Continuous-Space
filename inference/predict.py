@@ -1,61 +1,25 @@
 import os
 import argparse
-import yaml
 import torch
 from tqdm import tqdm
-from models.model import SentenceFromSpaceModel
-from data.dataset import PTBDataset, create_dataloader
+from sentence_generator import load_model, generate_sentence, load_config, process_generated_tokens
 from data.create_vocab import load_vocab
-
-def load_model(model_path, model_config, vocab_size, special_tokens, device):
-    model = SentenceFromSpaceModel(
-        vocab_size=vocab_size,
-        embedding_dim=model_config['embedding_dim'],
-        hidden_dim=model_config['hidden_dim'],
-        word_dropout_rate=model_config['word_dropout_rate'],
-        embedding_dropout_rate=model_config['embedding_dropout_rate'],
-        latent_dim=model_config['latent_dim'],
-        special_tokens=special_tokens,
-        max_gen_len=model_config['max_gen_len'],
-        bidirectional=model_config['bidirectional'],
-        num_layers=model_config['num_layers']
-    )
-    model.load_state_dict(torch.load(model_path, map_location=device))
-    model.to(device)
-    model.eval()
-    return model
-
-def generate_sentences(model, dataloader, device, beam_width=5):
-    all_generations = []
-    with torch.no_grad():
-        for batch in tqdm(dataloader, desc="Generating Sentences"):
-            lengths = batch['length']
-            z = torch.randn([len(lengths), model.latent_dim]).to(device)
-            generations, _ = model.inference(n=len(lengths), z=z, beam_width=beam_width)
-            all_generations.extend(generations)
-    return all_generations
-
-def load_config(config_file):
-    with open(config_file, 'r') as file:
-        config = yaml.safe_load(file)
-    return config
 
 def main():
     parser = argparse.ArgumentParser(description='Inference with SentenceFromSpaceModel')
     parser.add_argument('--model_config', type=str, default='configs/model_config.yaml', help='Path to model config file')
     parser.add_argument('--inference_config', type=str, default='configs/inference_config.yaml', help='Path to inference config file')
-    parser.add_argument('--model_path', type=str, required=True, help='Path to the trained model')
-    parser.add_argument('--data_dir', type=str, default='data', help='Directory containing the data')
+    parser.add_argument('--model_path', type=str, default='logs/best_model.pt', help='Path to the trained model')
+    parser.add_argument('--data_dir', type=str, default='raw_data', help='Directory containing the data')
     parser.add_argument('--output_file', type=str, default='generated_sentences.txt', help='File to save generated sentences')
+    parser.add_argument('--use_beam_search', action='store_true', help='Use beam search for sentence generation')
+    parser.add_argument('--beam_width', type=int, default=5, help='Beam width for beam search')
     args = parser.parse_args()
 
     model_config = load_config(args.model_config)
     inference_config = load_config(args.inference_config)
 
-    data_dir = args.data_dir
-    vocab_path = os.path.join(data_dir, "vocab.json")
-    test_data_path = os.path.join(data_dir, "ptb.test.json")
-
+    vocab_path = os.path.join(args.data_dir, "vocab.json")
     vocab = load_vocab(vocab_path)
     special_tokens = {
         'pad_token': vocab['stoi']['<pad>'],
@@ -64,18 +28,34 @@ def main():
         'eos_token': vocab['stoi']['<eos>']
     }
 
-    test_dataset = PTBDataset(test_data_path, vocab_path)
-    test_dataloader = create_dataloader(test_dataset, batch_size=inference_config['batch_size'], pad_idx=vocab['stoi']['<pad>'], shuffle=False)
-
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = load_model(args.model_path, model_config, len(vocab['stoi']), special_tokens, device)
+    model = load_model(args.model_path, model_config, len(vocab['itos']), special_tokens, device)
 
-    generations = generate_sentences(model, test_dataloader, device, beam_width=inference_config['beam_width'])
+    try:
+        with open(args.output_file, 'w') as f:
+            print(f"Opened output file: {args.output_file}")
 
-    with open(args.output_file, 'w') as f:
-        for sentence in generations:
-            sentence_text = ' '.join([vocab['itos'][token] for token in sentence])
-            f.write(sentence_text + '\n')
+            for _ in tqdm(range(inference_config['num_sentences']), desc="Generating Sentences"):
+                generated_tokens_list = generate_sentence(
+                    model, 
+                    device, 
+                    n_samples=1,  # Generate one sample at a time for now
+                    use_beam_search=args.use_beam_search,
+                    beam_width=args.beam_width
+                )
+
+                for generated_tokens in generated_tokens_list:
+                    sentence_text = process_generated_tokens(generated_tokens, vocab)
+                    if sentence_text:
+                        print("Generated sentence:", sentence_text)
+                        f.write(sentence_text + '\n')
+                    else:
+                        print("Generated sentence is empty or invalid, skipping writing.")
+
+        print(f"Completed writing to {args.output_file}")
+
+    except IOError as e:
+        print(f"Failed to open or write to file {args.output_file}: {e}")
 
 if __name__ == "__main__":
     main()
