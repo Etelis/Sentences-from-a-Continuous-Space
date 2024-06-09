@@ -62,23 +62,26 @@ def train(model, train_dataloader, val_dataloader, optimizer, device, epochs, lo
         avg_kl_div = total_kl_div / len(train_dataloader)
         avg_recon_loss = total_recon_loss / len(train_dataloader)
         avg_train_accuracy = total_accuracy / len(train_dataloader)
-        val_loss = evaluate(
-                            model,
-                            val_dataloader,
-                            loss_fn,
-                            device,
-                            anneal_function=training_config['anneal_function'],
-                            step=global_step,
-                            k=training_config['k'],
-                            annealing_till=training_config['annealing_till']
-                            )
+        val_loss, avg_nll_loss, avg_kl_loss = evaluate(
+            model,
+            val_dataloader,
+            loss_fn,
+            device,
+            anneal_function,
+            step=global_step,  # Use global_step for consistency
+            k=k,
+            annealing_till=annealing_till
+        )
+
         writer.add_scalar('Epoch/ELBO', avg_train_loss, epoch)
         writer.add_scalar('Epoch/KL Divergence', avg_kl_div, epoch)
         writer.add_scalar('Epoch/Negative Log-likelihood', avg_recon_loss, epoch)
         writer.add_scalar('Epoch/Accuracy', avg_train_accuracy, epoch)
         writer.add_scalar('Validation/Loss', val_loss, epoch)
+        writer.add_scalar('Validation/NLL Loss', avg_nll_loss, epoch)
+        writer.add_scalar('Validation/KL Loss', avg_kl_loss, epoch)
 
-        print(f'Epoch: {epoch+1}, Train ELBO: {avg_train_loss:.4f}, KL Divergence: {avg_kl_div:.4f}, Recon Loss: {avg_recon_loss:.4f}, Train Accuracy: {avg_train_accuracy:.4f}, Validation Loss: {val_loss:.4f}')
+        print(f'Epoch: {epoch+1}, Train ELBO: {avg_train_loss:.4f}, KL Divergence: {avg_kl_div:.4f}, Recon Loss: {avg_recon_loss:.4f}, Train Accuracy: {avg_train_accuracy:.4f}, Validation Loss: {val_loss:.4f}, Validation NLL Loss: {avg_nll_loss:.4f}, Validation KL Loss: {avg_kl_loss:.4f}')
         
         if val_loss < best_val_loss:
             best_val_loss = val_loss
